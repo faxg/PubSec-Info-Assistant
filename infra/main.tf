@@ -417,6 +417,107 @@ module "webapp" {
   depends_on = [ module.kvModule ]
 }
 
+module "openaiServices" {
+  source = "./core/ai/openaiservices"
+  name     = var.openAIServiceName != "" ? var.openAIServiceName : "infoasst-aoai-${random_string.random.result}"
+  location = var.location
+  tags     = local.tags
+  resourceGroupName = azurerm_resource_group.rg.name
+  keyVaultId = module.kvModule.keyVaultId
+  openaiServiceKey = var.azureOpenAIServiceKey
+  useExistingAOAIService = var.useExistingAOAIService
+
+  deployments = [
+    {
+      name = var.chatGptDeploymentName != "" ? var.chatGptDeploymentName : (var.chatGptModelName != "" ? var.chatGptModelName : "gpt-35-turbo-16k")
+      model = {
+        format = "OpenAI"
+        name = var.chatGptModelName != "" ? var.chatGptModelName : "gpt-35-turbo-16k"
+        version = var.chatGptModelVersion != "" ? var.chatGptModelVersion : "0613"
+      }
+      sku_name = "GlobalStandard" 
+      sku_capacity = var.chatGptDeploymentCapacity
+      rai_policy_name = "Microsoft.Default"
+    },
+    {
+      name = var.azureOpenAIEmbeddingDeploymentName != "" ? var.azureOpenAIEmbeddingDeploymentName : "text-embedding-ada-002"
+      model = {
+        format = "OpenAI"
+        name = var.azureOpenAIEmbeddingsModelName != "" ? var.azureOpenAIEmbeddingsModelName : "text-embedding-ada-002"
+        version = "2"
+      }
+      sku_name = "Standard"
+      sku_capacity = var.embeddingsDeploymentCapacity
+      rai_policy_name = "Microsoft.Default"
+    }
+  ]
+  depends_on = [
+    module.kvModule
+  ]
+}
+
+module "formrecognizer" {
+  source = "./core/ai/docintelligence"
+
+  name     = "infoasst-fr-${random_string.random.result}"
+  location = var.location
+  tags     = local.tags
+  customSubDomainName = "infoasst-fr-${random_string.random.result}"
+  resourceGroupName = azurerm_resource_group.rg.name
+  keyVaultId = module.kvModule.keyVaultId 
+  depends_on = [
+    module.kvModule
+  ]
+}
+
+module "cognitiveServices" {
+  source = "./core/ai/cogServices"
+
+  name     = "infoasst-enrichment-cog-${random_string.random.result}"
+  location = var.location 
+  tags     = local.tags
+  keyVaultId = module.kvModule.keyVaultId 
+  resourceGroupName = azurerm_resource_group.rg.name
+  depends_on = [
+    module.kvModule
+  ]
+}
+
+module "searchServices" {
+  source = "./core/search"
+
+  name     = var.searchServicesName != "" ? var.searchServicesName : "infoasst-search-${random_string.random.result}"
+  location = var.location
+  tags     = local.tags
+  # aad_auth_failure_mode = "http401WithBearerChallenge"
+  # sku_name = var.searchServicesSkuName
+  semanticSearch = var.use_semantic_reranker ? "free" : null
+  resourceGroupName = azurerm_resource_group.rg.name
+  keyVaultId = module.kvModule.keyVaultId
+  azure_search_domain = var.azure_search_domain
+
+  depends_on = [
+    module.kvModule
+  ]
+}
+
+module "cosmosdb" {
+  source = "./core/db"
+
+  name                = "infoasst-cosmos-${random_string.random.result}"
+  location            = var.location
+  tags                = local.tags
+  logDatabaseName   = "statusdb"
+  logContainerName  = "statuscontainer"
+  resourceGroupName = azurerm_resource_group.rg.name
+  keyVaultId        = module.kvModule.keyVaultId  
+  
+  depends_on = [
+    module.kvModule
+  ]
+}
+
+
 # // Function App 
 module "functions" { 
   source = "./core/host/functions"
